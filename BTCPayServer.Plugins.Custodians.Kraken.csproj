@@ -7,7 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\BTCPayServer.Abstractions\BTCPayServer.Abstractions.csproj" />
+      <ProjectReference Include="..\BTCPayServer.Abstractions\BTCPayServer.Abstractions.csproj" />
     </ItemGroup>
 
 </Project>
