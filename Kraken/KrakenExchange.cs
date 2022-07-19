@@ -166,7 +166,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         {
             var value = krakenConfig?.WithdrawToAddressNamePerPaymentMethod?[paymentMethod];
             withdrawalFieldset.Fields.Add(new TextField($"Store's destination for {paymentMethod}",
-                "WithdrawToAddressNamePerPaymentMethod[" + paymentMethod+"]",
+                "WithdrawToAddressNamePerPaymentMethod[" + paymentMethod + "]",
                 value,
                 false, "The exact name of the withdrawal destination stored in your Kraken account for your store's " + paymentMethod + " wallet."));
         }
@@ -297,21 +297,44 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
 
             if (txInfo != null)
             {
+                var type = txInfo["descr"]?["type"]?.ToString();
                 var pairString = txInfo["descr"]?["pair"]?.ToString();
                 var assetPair = ParseAssetPair(pairString);
-                var costInclFee = txInfo["cost"].ToObject<decimal>();
-                var feeInQuoteCurrencyEquivalent = txInfo["fee"].ToObject<decimal>();
-                var costWithoutFee = costInclFee - feeInQuoteCurrencyEquivalent;
-                var qtyBought = txInfo["vol_exec"].ToObject<decimal>();
+                
+                decimal qtyBought;
+                decimal qtySold;
+                string toAsset;
+                string fromAsset;
+                string feeAsset = assetPair.AssetSold;
 
-                ledgerEntries.Add(new LedgerEntryData(assetPair.AssetBought, qtyBought,
+                decimal volExec = txInfo["vol_exec"].ToObject<decimal>();
+                decimal costInclFee = txInfo["cost"].ToObject<decimal>();
+                decimal feeInQuoteCurrencyEquivalent = txInfo["fee"].ToObject<decimal>();
+                decimal costExclFee = costInclFee - feeInQuoteCurrencyEquivalent;
+
+                if ("buy".Equals(type))
+                {
+                    toAsset = assetPair.AssetBought;
+                    fromAsset = assetPair.AssetSold;
+                    qtyBought = volExec;
+                    qtySold = costExclFee;
+                }
+                else
+                {
+                    toAsset = assetPair.AssetSold;
+                    fromAsset = assetPair.AssetBought;
+                    qtyBought = costInclFee;
+                    qtySold = volExec;
+                }
+
+                ledgerEntries.Add(new LedgerEntryData(toAsset, qtyBought,
                     LedgerEntryData.LedgerEntryType.Trade));
-                ledgerEntries.Add(new LedgerEntryData(assetPair.AssetSold, -1 * costWithoutFee,
+                ledgerEntries.Add(new LedgerEntryData(fromAsset, -1 * qtySold,
                     LedgerEntryData.LedgerEntryType.Trade));
-                ledgerEntries.Add(new LedgerEntryData(assetPair.AssetSold, -1 * feeInQuoteCurrencyEquivalent,
+                ledgerEntries.Add(new LedgerEntryData(feeAsset, -1 * feeInQuoteCurrencyEquivalent,
                     LedgerEntryData.LedgerEntryType.Fee));
 
-                var r = new MarketTradeResult(assetPair.AssetSold, assetPair.AssetBought, ledgerEntries, tradeId);
+                var r = new MarketTradeResult(fromAsset, toAsset, ledgerEntries, tradeId);
                 return r;
             }
         }
@@ -428,13 +451,13 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         if (assetPair.AssetBought.Equals(toAsset, StringComparison.InvariantCulture))
         {
             orderType = "buy";
+            var priceQuote =
+                await GetQuoteForAssetAsync(assetPair.AssetSold, assetPair.AssetBought, config, cancellationToken);
+            qty /= priceQuote.Bid;
         }
         else
         {
             orderType = "sell";
-            var priceQuote =
-                await GetQuoteForAssetAsync(assetPair.AssetSold, assetPair.AssetBought, config, cancellationToken);
-            qty /= priceQuote.Bid;
         }
 
         var param = new Dictionary<string, string>();
