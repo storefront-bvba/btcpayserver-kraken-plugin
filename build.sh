@@ -27,21 +27,21 @@ git clone --depth 1 https://github.com/btcpayserver/btcpayserver.git btcpayserve
 cd btcpayserver
 
 echo "Moving plugin into position..."
-rsync -av --exclude .git --exclude tmp "$DIR"/* $PLUGIN_PROJECT
+rsync -av --exclude .git --exclude tmp "$DIR"/* ./Plugins/$PLUGIN_PROJECT
 
 echo "Adding reference..."
 cd BTCPayServer
-dotnet add reference ../$PLUGIN_PROJECT
+dotnet add reference ../Plugins/$PLUGIN_PROJECT
 cd ..
 
 
-cd $PLUGIN_PROJECT
+cd Plugins/$PLUGIN_PROJECT
 
 PUBL=bin/publish
 DIST=bin/packed
 
 rm -rf $DIST/*
 dotnet publish -c Release -o $PUBL/$PLUGIN_PROJECT
-dotnet run --project ../BTCPayServer.PluginPacker $PUBL/$PLUGIN_PROJECT $PLUGIN_PROJECT
+dotnet run --project ../../BTCPayServer.PluginPacker $PUBL/$PLUGIN_PROJECT $PLUGIN_PROJECT
 
 echo "DONE!"
