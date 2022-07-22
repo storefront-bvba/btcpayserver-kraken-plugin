@@ -58,17 +58,17 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
             {
                 foreach (KeyValuePair<string, JToken> keyValuePair in resultListObj)
                 {
-                    var splittablePair = keyValuePair.Value["wsname"]?.ToString();
                     var altname = keyValuePair.Value["altname"]?.ToString();
-                    if (splittablePair != null && altname != null)
+                    var assetBought = keyValuePair.Value["base"]?.ToString();
+                    var assetSold = keyValuePair.Value["quote"]?.ToString();
+                    if (assetBought != null && assetSold != null && altname != null)
                     {
-                        var parts = splittablePair.Split("/");
-                        list.Add(new KrakenAssetPair(ConvertFromKrakenAsset(parts[0]), ConvertFromKrakenAsset(parts[1]),
+                        list.Add(new KrakenAssetPair(ConvertFromKrakenAsset(assetBought),
+                            ConvertFromKrakenAsset(assetSold),
                             altname));
                     }
                 }
             }
-
 
             entry.SetAbsoluteExpiration(TimeSpan.FromHours(24));
             entry.Value = list;
