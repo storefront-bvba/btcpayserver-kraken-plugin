@@ -61,11 +61,13 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
                     var altname = keyValuePair.Value["altname"]?.ToString();
                     var assetBought = keyValuePair.Value["base"]?.ToString();
                     var assetSold = keyValuePair.Value["quote"]?.ToString();
+                    Decimal.TryParse(keyValuePair.Value["ordermin"]?.ToString(), out decimal minimumQty);
+
                     if (assetBought != null && assetSold != null && altname != null)
                     {
                         list.Add(new KrakenAssetPair(ConvertFromKrakenAsset(assetBought),
                             ConvertFromKrakenAsset(assetSold),
-                            altname));
+                            altname, minimumQty));
                     }
                 }
             }
