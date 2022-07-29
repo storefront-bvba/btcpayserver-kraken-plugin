@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using BTCPayServer.Abstractions.Custodians;
+using BTCPayServer.Abstractions.Custodians.Client;
 using BTCPayServer.Abstractions.Form;
 using BTCPayServer.Client.Models;
 using Microsoft.AspNetCore.WebUtilities;
