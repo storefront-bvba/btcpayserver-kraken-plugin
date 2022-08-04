@@ -504,7 +504,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         return null;
     }
 
-    public async Task<WithdrawResult> WithdrawAsync(string paymentMethod, decimal amount, JObject config,
+    public async Task<WithdrawResult> WithdrawToStoreWalletAsync(string paymentMethod, decimal amount, JObject config,
         CancellationToken cancellationToken)
     {
         var krakenConfig = ParseConfig(config);
