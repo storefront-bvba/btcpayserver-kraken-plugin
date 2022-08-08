@@ -7,6 +7,7 @@ using BTCPayServer.Abstractions.Form;
 using BTCPayServer.Client.Models;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json.Linq;
 
 namespace BTCPayServer.Plugins.Custodians.Kraken.Kraken;
@@ -741,5 +742,34 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
     private KrakenConfig ParseConfig(JObject config)
     {
         return config?.ToObject<KrakenConfig>();
+    }
+
+    public class KrakenWebhookSenderHostedService : IHostedService
+    {
+        private bool isStarting = true;
+        
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            if (isStarting)
+            {
+                isStarting = false;
+            }
+            
+            // TODO get all custodian accounts
+            // TODO for each custodian account, check if it is Kraken
+            // TODO get the websocket auth token + establish a connection to the webservice
+            // TODO watch for deposit + withdrawal events and dispatch when they happen
+            
+            throw new NotImplementedException();
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            // Shutdown
+            // TODO Disconnect all websocket connections?
+            
+            // Reset for a new start
+            isStarting = true;
+        }
     }
 }
