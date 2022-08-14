@@ -610,14 +610,9 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
     private async Task<JObject> QueryPrivate(string method, Dictionary<string, string> param, KrakenConfig config,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(config?.ApiKey))
+        if (string.IsNullOrEmpty(config?.ApiKey) || string.IsNullOrEmpty(config?.PrivateKey))
         {
-            throw new BadConfigException(new[] { "ApiKey" });
-        }
-
-        if (string.IsNullOrEmpty(config?.PrivateKey))
-        {
-            throw new BadConfigException(new[] { "PrivateKey" });
+            throw new BadConfigException(new[] { "ApiKey", "PrivateKey" });
         }
 
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -646,7 +641,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         }
         catch (FormatException e)
         {
-            throw new BadConfigException(new[] { "PrivateKey" });
+            throw new BadConfigException(new[] { "ApiKey","PrivateKey" });
         }
 
         var sha256 = SHA256.Create();
@@ -687,8 +682,9 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
                 var errorMessage = errorMessageArray[0].ToString();
                 if (errorMessage.Equals("EAPI:Invalid key", StringComparison.InvariantCulture))
                 {
-                    throw new BadConfigException(new[] { "ApiKey" });
+                    throw new BadConfigException(new[] { "ApiKey", "PrivateKey" });
                 }
+
                 if (errorMessage.Equals("EGeneral:Permission denied", StringComparison.InvariantCulture))
                 {
                     throw new PermissionDeniedCustodianApiException(this);
