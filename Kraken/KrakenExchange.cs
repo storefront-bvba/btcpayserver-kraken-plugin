@@ -146,9 +146,10 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         var krakenConfig = ParseConfig(config);
 
         var form = new Form();
-        var fieldset = new Fieldset { Label = "Connection Details" };
+        var fieldset = new Fieldset { Label = "Connection details" };
 
-        var apiKeyField = new TextField("API Key", "ApiKey", krakenConfig.ApiKey, true, "Enter your Kraken API Key. Your API Key should have <a href=\"/Resources/img/kraken-api-permissions.png\" target=\"_blank\" rel=\"noreferrer noopener\">at least these permissions</a>.");
+        var apiKeyField = new TextField("API Key", "ApiKey", krakenConfig.ApiKey, true,
+            "Enter your Kraken API Key. Your API Key should have <a href=\"/Resources/img/kraken-api-permissions.png\" target=\"_blank\" rel=\"noreferrer noopener\">at least these permissions</a>.");
         var privateKeyField = new TextField("Private Key", "PrivateKey", krakenConfig.PrivateKey,
             true, "Enter your Kraken Private Key");
 
@@ -160,7 +161,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         // 1. we have an existing config value for,
         // 2. all assets stored with the custodian and
         // 3. all assets our store supports
-        var withdrawalFieldset = new Fieldset { Label = "Withdrawals" };
+        var withdrawalFieldset = new Fieldset { Label = "Withdrawal settings" };
         form.Fieldsets.Add(withdrawalFieldset);
 
         var paymentMethods = GetWithdrawablePaymentMethods();
@@ -168,10 +169,12 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         foreach (var paymentMethod in paymentMethods)
         {
             var value = krakenConfig?.WithdrawToAddressNamePerPaymentMethod?[paymentMethod];
-            withdrawalFieldset.Fields.Add(new TextField($"Store's destination for {paymentMethod}",
-                "WithdrawToAddressNamePerPaymentMethod[" + paymentMethod + "]",
+            withdrawalFieldset.Fields.Add(new TextField($"Withdrawal \"address description\" pointing to your store's {paymentMethod} wallet",
+                "WithdrawToStoreWallet_" + paymentMethod,
                 value,
-                false, "The exact name of the withdrawal destination stored in your Kraken account for your store's " + paymentMethod + " wallet."));
+                false,
+                "The exact name of the withdrawal destination as stored in your Kraken account for your store's " +
+                paymentMethod + " wallet. <a target=\"_blank\" rel=\"noreferrer noopener\" href=\"https://support.kraken.com/hc/en-us/articles/360000672863\">Learn how to setup a withdrawal destination</a>. Example value: \"Mum's Bitcoin Savings\""));
         }
 
         try
@@ -206,6 +209,8 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
             param.Add("asset", krakenAsset);
             param.Add("method", "Bitcoin");
             param.Add("new", "true");
+
+            // TODO creating a new address can incur a cost, so maybe we should not do this every time? Is this free for BTC? Not sure...
 
             JObject requestResult;
             try
@@ -303,7 +308,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
                 var type = txInfo["descr"]?["type"]?.ToString();
                 var pairString = txInfo["descr"]?["pair"]?.ToString();
                 var assetPair = ParseAssetPair(pairString);
-                
+
                 decimal qtyBought;
                 decimal qtySold;
                 string toAsset;
@@ -365,7 +370,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         {
             throw new WrongTradingPairException(fromAsset, toAsset);
         }
-        
+
         var isReverse = pair.AssetBought.Equals(fromAsset);
 
         try
@@ -387,7 +392,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
                     bidDecimal = 1 / askDecimal;
                     askDecimal = 1 / tmpBidDecimal;
                 }
-                
+
                 return new AssetQuoteResult(fromAsset, toAsset, bidDecimal, askDecimal);
             }
         }
@@ -501,6 +506,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
                 return pair;
             }
         }
+
         return null;
     }
 
@@ -527,6 +533,56 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         }
         catch (CustodianApiException e)
         {
+            if (e.Message.Equals("EFunding:Unknown withdraw key", StringComparison.InvariantCulture))
+            {
+                // This should point the user to the config in the UI, so he can change the withdrawal destination.
+                throw new InvalidWithdrawalTargetException(this, paymentMethod, withdrawToAddressName, e);
+            }
+
+            // Any other withdrawal issue
+            throw new CannotWithdrawException(this, paymentMethod, withdrawToAddressName, e);
+        }
+    }
+
+    public async Task<SimulateWithdrawalResult> SimulateWithdrawalAsync(string paymentMethod, decimal qty, JObject config,
+        CancellationToken cancellationToken)
+    {
+        var krakenConfig = ParseConfig(config);
+        var withdrawToAddressNamePerPaymentMethod = krakenConfig.WithdrawToAddressNamePerPaymentMethod;
+        var withdrawToAddressName = withdrawToAddressNamePerPaymentMethod[paymentMethod];
+        var asset = paymentMethod.Split("-")[0];
+        var krakenAsset = ConvertToKrakenAsset(asset);
+        var param = new Dictionary<string, string>();
+
+        param.Add("asset", krakenAsset);
+        param.Add("key", withdrawToAddressName);
+        param.Add("amount", qty + "");
+
+        try
+        {
+            // TODO calculate the withdrawal fee for the asset taking the user's trading volume into account
+            var requestResult = await QueryPrivate("WithdrawInfo", param, krakenConfig, cancellationToken);
+            //var withdrawalId = (string)requestResult["result"]?["refid"];
+
+            decimal fee = new(0.1);
+            var amountExclFee = qty - fee;
+            
+            var ledgerEntries = new List<LedgerEntryData>();
+            ledgerEntries.Add(new LedgerEntryData(asset, -1 * amountExclFee,
+                LedgerEntryData.LedgerEntryType.Withdrawal));
+            ledgerEntries.Add(new LedgerEntryData(asset, -1 * fee,
+                LedgerEntryData.LedgerEntryType.Fee));
+
+            var balances = await GetAssetBalancesAsync(config, default);
+            var minQty = 0;
+            var maxQty = balances[asset];
+            
+            var r = new SimulateWithdrawalResult(paymentMethod, asset, ledgerEntries, minQty, maxQty);
+            return r;
+        }
+        catch (CustodianApiException e)
+        {
+            // TODO look for BadConfig
             if (e.Message.Equals("EFunding:Unknown withdraw key", StringComparison.InvariantCulture))
             {
                 // This should point the user to the config in the UI, so he can change the withdrawal destination.
