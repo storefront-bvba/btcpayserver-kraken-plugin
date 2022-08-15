@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using BTCPayServer.Abstractions.Custodians;
 using BTCPayServer.Abstractions.Custodians.Client;
+using BTCPayServer.Abstractions.Extensions;
 using BTCPayServer.Abstractions.Form;
 using BTCPayServer.Client.Models;
 using Microsoft.AspNetCore.WebUtilities;
@@ -168,13 +169,16 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
 
         foreach (var paymentMethod in paymentMethods)
         {
-            var value = krakenConfig?.WithdrawToAddressNamePerPaymentMethod?[paymentMethod];
-            withdrawalFieldset.Fields.Add(new TextField($"Withdrawal \"address description\" pointing to your store's {paymentMethod} wallet",
-                "WithdrawToStoreWallet_" + paymentMethod,
+            var fieldName = "WithdrawToStoreWalletAddressLabels." + paymentMethod;
+            string value = config.GetValueByPath(fieldName);
+            withdrawalFieldset.Fields.Add(new TextField(
+                $"Withdrawal \"address description\" pointing to your store's {paymentMethod} wallet",
+                fieldName,
                 value,
                 false,
                 "The exact name of the withdrawal destination as stored in your Kraken account for your store's " +
-                paymentMethod + " wallet. <a target=\"_blank\" rel=\"noreferrer noopener\" href=\"https://support.kraken.com/hc/en-us/articles/360000672863\">Learn how to setup a withdrawal destination</a>. Example value: \"Mum's Bitcoin Savings\""));
+                paymentMethod +
+                " wallet. <a target=\"_blank\" rel=\"noreferrer noopener\" href=\"https://support.kraken.com/hc/en-us/articles/360000672863\">Learn how to setup a withdrawal destination</a>. Example value: \"Mum's Bitcoin Savings\""));
         }
 
         try
@@ -189,7 +193,8 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
                 field.ValidationErrors.Add("Invalid " + field.Label);
             }
 
-            form.TopMessages.Add(new AlertMessage(AlertMessage.AlertMessageType.Danger, "Cannot connect to Kraken. Please check your API and private keys."));
+            form.TopMessages.Add(new AlertMessage(AlertMessage.AlertMessageType.Danger,
+                "Cannot connect to Kraken. Please check your API and private keys."));
         }
 
         return form;
@@ -513,8 +518,10 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
     public async Task<WithdrawResult> WithdrawToStoreWalletAsync(string paymentMethod, decimal amount, JObject config,
         CancellationToken cancellationToken)
     {
+        // TODO update code using the latest from SimulateWithdrawalAsync(). Both methods are very alike!
+
         var krakenConfig = ParseConfig(config);
-        var withdrawToAddressNamePerPaymentMethod = krakenConfig.WithdrawToAddressNamePerPaymentMethod;
+        var withdrawToAddressNamePerPaymentMethod = krakenConfig.WithdrawToStoreWalletAddressLabels;
         var withdrawToAddressName = withdrawToAddressNamePerPaymentMethod[paymentMethod];
         var asset = paymentMethod.Split("-")[0];
         var krakenAsset = ConvertToKrakenAsset(asset);
@@ -544,12 +551,25 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         }
     }
 
-    public async Task<SimulateWithdrawalResult> SimulateWithdrawalAsync(string paymentMethod, decimal qty, JObject config,
+    public async Task<SimulateWithdrawalResult> SimulateWithdrawalAsync(string paymentMethod, decimal qty,
+        JObject config,
         CancellationToken cancellationToken)
     {
+        var withdrawalConfigKey = "WithdrawToStoreWalletAddressLabels." + paymentMethod;
+        string withdrawToAddressName = "" + config.GetValueByPath(withdrawalConfigKey);
+        //var withdrawToAddressNamePerPaymentMethod = krakenConfig.WithdrawToStoreWalletAddressLabels;
+        // if (withdrawToAddressNamePerPaymentMethod.ContainsKey(paymentMethod))
+        // {
+        //     withdrawToAddressName = withdrawToAddressNamePerPaymentMethod[paymentMethod];
+        // }
+
+        if (String.IsNullOrEmpty(withdrawToAddressName))
+        {
+            throw new BadConfigException(new[] { withdrawalConfigKey });
+        }
+
         var krakenConfig = ParseConfig(config);
-        var withdrawToAddressNamePerPaymentMethod = krakenConfig.WithdrawToAddressNamePerPaymentMethod;
-        var withdrawToAddressName = withdrawToAddressNamePerPaymentMethod[paymentMethod];
+
         var asset = paymentMethod.Split("-")[0];
         var krakenAsset = ConvertToKrakenAsset(asset);
         var param = new Dictionary<string, string>();
@@ -566,7 +586,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
 
             decimal fee = new(0.1);
             var amountExclFee = qty - fee;
-            
+
             var ledgerEntries = new List<LedgerEntryData>();
             ledgerEntries.Add(new LedgerEntryData(asset, -1 * amountExclFee,
                 LedgerEntryData.LedgerEntryType.Withdrawal));
@@ -576,7 +596,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
             var balances = await GetAssetBalancesAsync(config, default);
             var minQty = 0;
             var maxQty = balances[asset];
-            
+
             var r = new SimulateWithdrawalResult(paymentMethod, asset, ledgerEntries, minQty, maxQty);
             return r;
         }
@@ -697,7 +717,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         }
         catch (FormatException e)
         {
-            throw new BadConfigException(new[] { "ApiKey","PrivateKey" });
+            throw new BadConfigException(new[] { "ApiKey", "PrivateKey" });
         }
 
         var sha256 = SHA256.Create();
