@@ -602,13 +602,18 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         }
         catch (CustodianApiException e)
         {
-            // TODO look for BadConfig
+            if (e is BadConfigException)
+            {
+                // Allow BadConfig to pass
+                throw e;
+            }
+            
             if (e.Message.Equals("EFunding:Unknown withdraw key", StringComparison.InvariantCulture))
             {
                 // This should point the user to the config in the UI, so he can change the withdrawal destination.
                 throw new InvalidWithdrawalTargetException(this, paymentMethod, withdrawToAddressName, e);
             }
-
+            
             // Any other withdrawal issue
             throw new CannotWithdrawException(this, paymentMethod, withdrawToAddressName, e);
         }
