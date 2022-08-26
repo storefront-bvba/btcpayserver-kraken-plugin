@@ -587,6 +587,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         {
             // TODO calculate the withdrawal fee for the asset taking the user's trading volume into account
             var requestResult = await QueryPrivate("WithdrawInfo", param, krakenConfig, cancellationToken);
+            
             //var withdrawalId = (string)requestResult["result"]?["refid"];
 
             decimal fee = new(0.1);
@@ -689,7 +690,15 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
     public string[] GetWithdrawablePaymentMethods()
     {
         // Withdraw is the same as deposit
-        return GetDepositablePaymentMethods();
+        var depositablePms = GetDepositablePaymentMethods();
+        
+        // TODO add more fiat support
+        string[] fiatPms = { "USD", "EUR"};
+        
+        string[] combined = new string[depositablePms.Length + fiatPms.Length];
+        Array.Copy(depositablePms, combined, depositablePms.Length);
+        Array.Copy(fiatPms, 0, combined, depositablePms.Length, fiatPms.Length);
+        return combined;
     }
 
 
