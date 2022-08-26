@@ -154,9 +154,9 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         var form = new Form();
         var fieldset = new Fieldset { Label = "Connection details" };
 
-        var apiKeyField = new TextField("API Key", "ApiKey", krakenConfig.ApiKey, true,
+        var apiKeyField = new PasswordField("API Key", "ApiKey", krakenConfig.ApiKey, true,
             "Enter your Kraken API Key. Your API Key should have <a href=\"/Resources/img/kraken-api-permissions.png\" target=\"_blank\" rel=\"noreferrer noopener\">at least these permissions</a>.");
-        var privateKeyField = new TextField("Private Key", "PrivateKey", krakenConfig.PrivateKey,
+        var privateKeyField = new PasswordField("Private Key", "PrivateKey", krakenConfig.PrivateKey,
             true, "Enter your Kraken Private Key");
 
         form.Fieldsets.Add(fieldset);
