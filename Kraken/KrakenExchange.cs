@@ -523,11 +523,10 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
     public async Task<WithdrawResult> WithdrawToStoreWalletAsync(string paymentMethod, decimal amount, JObject config,
         CancellationToken cancellationToken)
     {
-        // TODO update code using the latest from SimulateWithdrawalAsync(). Both methods are very alike!
-
+        var withdrawalConfigKey = "WithdrawToStoreWalletAddressLabels." + paymentMethod;
+        string withdrawToAddressName = "" + config.GetValueByPath(withdrawalConfigKey);
+        
         var krakenConfig = ParseConfig(config);
-        var withdrawToAddressNamePerPaymentMethod = krakenConfig.WithdrawToStoreWalletAddressLabels;
-        var withdrawToAddressName = withdrawToAddressNamePerPaymentMethod[paymentMethod];
         var asset = paymentMethod.Split("-")[0];
         var krakenAsset = ConvertToKrakenAsset(asset);
         var param = new Dictionary<string, string>();
@@ -585,12 +584,16 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
 
         try
         {
-            // TODO calculate the withdrawal fee for the asset taking the user's trading volume into account
             var requestResult = await QueryPrivate("WithdrawInfo", param, krakenConfig, cancellationToken);
             
             //var withdrawalId = (string)requestResult["result"]?["refid"];
+            decimal fee = requestResult.SelectToken("result.fee").Value<decimal>();
+            var minQty = 0;
+            
+            // Fee is still included in maxQty. So you will receive maxQty - fee
+            var maxQty = requestResult.SelectToken("result.limit").Value<decimal>(); 
 
-            decimal fee = new(0.1);
+            //var method = requestResult.SelectToken("result.method").Value<decimal>(); // Example: "SEPA" or "Bitcoin"
             var amountExclFee = qty - fee;
 
             var ledgerEntries = new List<LedgerEntryData>();
@@ -598,10 +601,6 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
                 LedgerEntryData.LedgerEntryType.Withdrawal));
             ledgerEntries.Add(new LedgerEntryData(asset, -1 * fee,
                 LedgerEntryData.LedgerEntryType.Fee));
-
-            var balances = await GetAssetBalancesAsync(config, default);
-            var minQty = 0;
-            var maxQty = balances[asset];
 
             var r = new SimulateWithdrawalResult(paymentMethod, asset, ledgerEntries, minQty, maxQty);
             return r;
