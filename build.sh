@@ -42,6 +42,8 @@ DIST=bin/packed
 
 rm -rf $DIST/*
 dotnet publish -c Release -o $PUBL/$PLUGIN_PROJECT
-dotnet run --project ../../BTCPayServer.PluginPacker $PUBL/$PLUGIN_PROJECT $PLUGIN_PROJECT
+dotnet run --project ../../BTCPayServer.PluginPacker $PUBL/$PLUGIN_PROJECT $PLUGIN_PROJECT $DIST
+
+
 
 echo "DONE!"
