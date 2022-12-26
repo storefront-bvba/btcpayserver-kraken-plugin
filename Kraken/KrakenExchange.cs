@@ -1,11 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using BTCPayServer.Abstractions.Custodians;
 using BTCPayServer.Abstractions.Custodians.Client;
 using BTCPayServer.Abstractions.Extensions;
@@ -63,12 +58,12 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
             var resultList = data["result"];
             if (resultList is JObject resultListObj)
             {
-                foreach (KeyValuePair<string, JToken> keyValuePair in resultListObj)
+                foreach ((string _, JToken? value) in resultListObj)
                 {
-                    var altname = keyValuePair.Value["altname"]?.ToString();
-                    var assetBought = keyValuePair.Value["base"]?.ToString();
-                    var assetSold = keyValuePair.Value["quote"]?.ToString();
-                    Decimal.TryParse(keyValuePair.Value["ordermin"]?.ToString(), out decimal minimumQty);
+                    var altname = value?["altname"]?.ToString();
+                    var assetBought = value?["base"]?.ToString();
+                    var assetSold = value?["quote"]?.ToString();
+                    decimal.TryParse(value?["ordermin"]?.ToString(), out decimal minimumQty);
 
                     if (assetBought != null && assetSold != null && altname != null)
                     {
@@ -111,7 +106,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         {
             data = await QueryPrivate("Balance", null, krakenConfig, cancellationToken);
         }
-        catch (BadConfigException e)
+        catch (BadConfigException)
         {
             throw;
         }
@@ -121,10 +116,9 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         }
 
         var balances = data["result"];
-        if (balances is JObject)
+        if (balances is JObject balancesJObject)
         {
             var r = new Dictionary<string, decimal>();
-            var balancesJObject = (JObject)balances;
             foreach (var keyValuePair in balancesJObject)
             {
                 if (keyValuePair.Value != null)
@@ -137,11 +131,9 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
                     }
                 }
             }
-
             return r;
         }
-
-        return null;
+        throw new AssetBalancesUnavailableException("Got an invalid response from Kraken");
     }
 
     public async Task<Form>? GetConfigForm(JObject config, string locale,
@@ -152,14 +144,15 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         var krakenConfig = ParseConfig(config);
 
         var form = new Form();
-        var fieldset = new Fieldset { Label = "Connection details" };
+        var fieldset = Field.CreateFieldset();
+        fieldset.Label = "Connection details";
 
-        var apiKeyField = new PasswordField("API Key", "ApiKey", krakenConfig.ApiKey, true,
-            "Enter your Kraken API Key. Your API Key should have <a href=\"/Resources/img/kraken-api-permissions.png\" target=\"_blank\" rel=\"noreferrer noopener\">at least these permissions</a>.");
-        var privateKeyField = new PasswordField("Private Key", "PrivateKey", krakenConfig.PrivateKey,
-            true, "Enter your Kraken Private Key");
+        var apiKeyField = Field.Create("API Key", "ApiKey", krakenConfig.ApiKey, true,
+            "Enter your Kraken API Key. Your API Key should have <a href=\"/Resources/img/kraken-api-permissions.png\" target=\"_blank\" rel=\"noreferrer noopener\">at least these permissions</a>.", "password");
+        var privateKeyField = Field.Create("Private Key", "PrivateKey", krakenConfig.PrivateKey,
+            true, "Enter your Kraken Private Key", "password");
 
-        form.Fieldsets.Add(fieldset);
+        form.Fields.Add(fieldset);
         fieldset.Fields.Add(apiKeyField);
         fieldset.Fields.Add(privateKeyField);
 
@@ -167,8 +160,9 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         // 1. we have an existing config value for,
         // 2. all assets stored with the custodian and
         // 3. all assets our store supports
-        var withdrawalFieldset = new Fieldset { Label = "Withdrawal settings" };
-        form.Fieldsets.Add(withdrawalFieldset);
+        var withdrawalFieldset = Field.CreateFieldset();
+        withdrawalFieldset.Label = "Withdrawal settings";
+        form.Fields.Add(withdrawalFieldset);
 
         var paymentMethods = GetWithdrawablePaymentMethods();
 
@@ -176,14 +170,14 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         {
             var fieldName = "WithdrawToStoreWalletAddressLabels." + paymentMethod;
             string value = config.GetValueByPath(fieldName);
-            withdrawalFieldset.Fields.Add(new TextField(
+            withdrawalFieldset.Fields.Add(Field.Create(
                 $"Withdrawal \"address description\" pointing to your store's {paymentMethod} wallet",
                 fieldName,
                 value,
                 false,
                 "The exact name of the withdrawal destination as stored in your Kraken account for your store's " +
                 paymentMethod +
-                " wallet. <a target=\"_blank\" rel=\"noreferrer noopener\" href=\"https://support.kraken.com/hc/en-us/articles/360000672863\">Learn how to setup a withdrawal destination</a>. Example value: \"Mum's Bitcoin Savings\""));
+                " wallet. <a target=\"_blank\" rel=\"noreferrer noopener\" href=\"https://support.kraken.com/hc/en-us/articles/360000672863\">Learn how to setup a withdrawal destination</a>. Example value: \"Mum's Bitcoin Savings\"", "text"));
         }
 
         try
@@ -629,8 +623,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
     {
         var asset = paymentMethod.Split("-")[0];
         var krakenAsset = ConvertToKrakenAsset(asset);
-        var param = new Dictionary<string, string>();
-        param.Add("asset", krakenAsset);
+        var param = new Dictionary<string, string> { { "asset", krakenAsset } };
 
         var krakenConfig = ParseConfig(config);
         var withdrawStatusResponse = await QueryPrivate("WithdrawStatus", param, krakenConfig, cancellationToken);
@@ -701,7 +694,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
     }
 
 
-    private async Task<JObject> QueryPrivate(string method, Dictionary<string, string> param, KrakenConfig config,
+    private async Task<JObject> QueryPrivate(string method, Dictionary<string, string>? param, KrakenConfig config,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(config?.ApiKey) || string.IsNullOrEmpty(config?.PrivateKey))
@@ -733,7 +726,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         {
             decodedSecret = Convert.FromBase64String(config.PrivateKey);
         }
-        catch (FormatException e)
+        catch (FormatException)
         {
             throw new BadConfigException(new[] { "ApiKey", "PrivateKey" });
         }
