@@ -1,6 +1,11 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using BTCPayServer.Abstractions.Custodians;
 using BTCPayServer.Abstractions.Custodians.Client;
 using BTCPayServer.Abstractions.Extensions;
@@ -824,5 +829,11 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
     private KrakenConfig ParseConfig(JObject config)
     {
         return config?.ToObject<KrakenConfig>();
+    }
+
+    public JObject cleanupConfigBeforeSave(JObject config)
+    {
+        var parsedData = ParseConfig(config);
+        return JObject.FromObject(parsedData);
     }
 }
