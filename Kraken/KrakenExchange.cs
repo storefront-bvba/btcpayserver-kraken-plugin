@@ -193,7 +193,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         {
             foreach (var badConfigKey in e.BadConfigKeys)
             {
-                var field = form.GetFieldByName(badConfigKey);
+                var field = form.GetFieldByFullName(badConfigKey);
                 field.ValidationErrors.Add("Invalid " + field.Label);
             }
 
