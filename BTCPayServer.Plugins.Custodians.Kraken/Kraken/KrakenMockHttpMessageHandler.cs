@@ -1,5 +1,9 @@
+using System;
 using System.Net;
+using System.Net.Http;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace BTCPayServer.Plugins.Custodians.Kraken.Kraken;
 
@@ -7,8 +11,8 @@ public class KrakenMockHttpMessageHandler : HttpMessageHandler
 {
     public const string NewWithdrawalId = "NEW-WITHDRAWAL-ID";
     public const string BadWithdrawalId = "BAD-WITHDRAWAL-ID";
-    public static readonly decimal WithdrawalAmountExclFee = new decimal(0.005);
-    public static readonly decimal ExpectedWithdrawalFee = new decimal(0.00002);
+    public static readonly decimal WithdrawalAmountExclFee = new(0.005);
+    public static readonly decimal ExpectedWithdrawalFee = new(0.00002);
     public const string TargetWithdrawalAddress = "bc1q01234567891234567891234567891234567890";
 
 
