@@ -172,7 +172,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         foreach (var paymentMethod in paymentMethods)
         {
             var fieldName = "WithdrawToStoreWalletAddressLabels." + paymentMethod;
-            string value = GetValueByPath(config, fieldName);
+            string value = (string)config.GetValue(fieldName);
             withdrawalFieldset.Fields.Add(Field.Create(
                 $"Withdrawal \"address description\" pointing to your store's {paymentMethod} wallet",
                 fieldName,
@@ -521,7 +521,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         CancellationToken cancellationToken)
     {
         var withdrawalConfigKey = "WithdrawToStoreWalletAddressLabels." + paymentMethod;
-        string withdrawToAddressName = "" + GetValueByPath(config, withdrawalConfigKey);
+        string withdrawToAddressName = (string)config.GetValue(withdrawalConfigKey);
         
         var krakenConfig = ParseConfig(config);
         var asset = paymentMethod.Split("-")[0];
@@ -556,8 +556,8 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         JObject config,
         CancellationToken cancellationToken)
     {
-        var withdrawalConfigKey = "WithdrawToStoreWalletAddressLabels." + paymentMethod;
-        string withdrawToAddressName = "" + GetValueByPath(config, withdrawalConfigKey);
+        string withdrawalConfigKey = "WithdrawToStoreWalletAddressLabels." + paymentMethod;
+        string withdrawToAddressName = (string) config.GetValue(withdrawalConfigKey);
         //var withdrawToAddressNamePerPaymentMethod = krakenConfig.WithdrawToStoreWalletAddressLabels;
         // if (withdrawToAddressNamePerPaymentMethod.ContainsKey(paymentMethod))
         // {
@@ -619,41 +619,6 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
             // Any other withdrawal issue
             throw new CannotWithdrawException(this, paymentMethod, withdrawToAddressName, e);
         }
-    }
-
-    private string GetValueByPath(JObject json, string path)
-    {
-        string[] pathParts = path.Split('.');
-
-        JObject loopedJObject = json;
-        var last = pathParts.Last();
-        string r = null;
-        
-        foreach (string pathPart in pathParts)
-        {
-            var isLast = pathPart.Equals(last);
-
-            var childNode = loopedJObject.GetValue(pathPart);
-            if (isLast)
-            {
-                // Set the value now we're reached the final node
-                r = loopedJObject.GetValue(pathPart)?.ToString();
-            }
-            else if (childNode == null)
-            {
-                r = null;
-            }
-            else if (childNode is JObject childNodeJObject)
-            {
-                loopedJObject = childNodeJObject;
-            }
-            else
-            {
-                throw new Exception("Cannot move into key '" + path + "' in JObject " + json);
-            }
-        }
-
-        return r?.ToString();
     }
 
     public async Task<WithdrawResult> GetWithdrawalInfoAsync(string paymentMethod, string withdrawalId, JObject config,
