@@ -64,7 +64,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
             var resultList = data["result"];
             if (resultList is JObject resultListObj)
             {
-                foreach ((string _, JToken? value) in resultListObj)
+                foreach ((string _, JToken value) in resultListObj)
                 {
                     var altname = value?["altname"]?.ToString();
                     var assetBought = value?["base"]?.ToString();
@@ -142,7 +142,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         throw new AssetBalancesUnavailableException("Got an invalid response from Kraken");
     }
 
-    public async Task<Form>? GetConfigForm(JObject config, CancellationToken cancellationToken)
+    public async Task<Form> GetConfigForm(JObject config, CancellationToken cancellationToken)
     {
         var krakenConfig = ParseConfig(config);
 
@@ -312,8 +312,8 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
 
             if (txInfo != null)
             {
-                var type = txInfo["descr"]?["type"]?.ToString();
-                var pairString = txInfo["descr"]?["pair"]?.ToString();
+                string type = (string)txInfo.SelectToken("descr.type");
+                string pairString = (string)txInfo.SelectToken("descr.pair");
                 var assetPair = ParseAssetPair(pairString);
 
                 decimal qtyBought;
@@ -322,9 +322,10 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
                 string fromAsset;
                 string feeAsset = assetPair.AssetSold;
 
-                decimal volExec = txInfo["vol_exec"].ToObject<decimal>();
-                decimal costInclFee = txInfo["cost"].ToObject<decimal>();
-                decimal feeInQuoteCurrencyEquivalent = txInfo["fee"].ToObject<decimal>();
+                //decimal volExec = txInfo["vol_exec"].ToObject<decimal>();
+                decimal volExec = (decimal) txInfo.SelectToken("vol_exec");
+                decimal costInclFee = (decimal) txInfo.SelectToken("cost");
+                decimal feeInQuoteCurrencyEquivalent = (decimal) txInfo.SelectToken("fee");
                 decimal costExclFee = costInclFee - feeInQuoteCurrencyEquivalent;
 
                 if ("buy".Equals(type))
@@ -403,7 +404,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
                 return new AssetQuoteResult(fromAsset, toAsset, bidDecimal, askDecimal);
             }
         }
-        catch (CustodianApiException e)
+        catch (CustodianApiException)
         {
         }
 
@@ -495,7 +496,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         return r;
     }
 
-    private KrakenAssetPair? FindAssetPair(string fromAsset, string toAsset, bool allowReverse)
+    private KrakenAssetPair FindAssetPair(string fromAsset, string toAsset, bool allowReverse)
     {
         var pairs = GetTradableAssetPairs();
         foreach (var assetPairData in pairs)
@@ -639,9 +640,9 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
                 var withdrawalInfo = withdrawal.ToObject<JObject>();
 
                 var ledgerEntries = new List<LedgerEntryData>();
-                var amountExclFee = withdrawalInfo["amount"].ToObject<decimal>();
-                var fee = withdrawalInfo["fee"].ToObject<decimal>();
-                var withdrawalToAddress = withdrawalInfo["info"].ToString();
+                decimal amountExclFee = (decimal) withdrawalInfo.SelectToken("amount");
+                decimal fee = (decimal) withdrawalInfo.SelectToken("fee");
+                string withdrawalToAddress = (string)withdrawalInfo.SelectToken("info");
 
                 var timeUnixTimestamp = (int)withdrawalInfo["time"]; // Unix timestamp integer. Example: 1644595165
                 var createdTime = DateTimeOffset.FromUnixTimeSeconds(timeUnixTimestamp);
@@ -697,7 +698,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
     }
 
 
-    private async Task<JObject> QueryPrivate(string method, Dictionary<string, string>? param, KrakenConfig config,
+    private async Task<JObject> QueryPrivate(string method, Dictionary<string, string> param, KrakenConfig config,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(config?.ApiKey) || string.IsNullOrEmpty(config?.PrivateKey))
@@ -741,7 +742,7 @@ public class KrakenExchange : ICustodian, ICanDeposit, ICanTrade, ICanWithdraw
         var hash1 = sha256.ComputeHash(Encoding.UTF8.GetBytes(unhashed1));
         var pathBytes = Encoding.UTF8.GetBytes(path);
 
-        byte[] unhashed2 = new byte[path.Length + hash1.Length];
+        var unhashed2 = new byte[path.Length + hash1.Length];
         Buffer.BlockCopy(pathBytes, 0, unhashed2, 0, pathBytes.Length);
         Buffer.BlockCopy(hash1, 0, unhashed2, pathBytes.Length, hash1.Length);
 
